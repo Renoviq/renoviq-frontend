@@ -2,7 +2,7 @@
 
 The web app of Renoviq AI, a service that redesigns a room from a photo. Users sign up, upload a photo of a room, pick a room type and a design style, and get an AI redesign shown next to the original. Designs are saved to a personal gallery.
 
-The API lives in its own repository, [renoviq-backend](https://github.com/Renoviq/renoviq-backend). In production this app is a folder of static files served by nginx on the same EC2 server as the API container, so the browser talks to one address and `/api` and `/auth` are forwarded to the backend.
+The API lives in its own repository, [renoviq-backend](https://github.com/Renoviq/renoviq-backend). In production this app is a folder of static files served by nginx on the same EC2 server as the API container, so the browser talks to one address and `/api` and `/auth/google` are forwarded to the backend.
 
 | Part | What it uses |
 | --- | --- |
@@ -20,7 +20,7 @@ cp .env.example .env     # optional: only needed if the backend is not on port 3
 npm run dev              # http://localhost:5173
 ```
 
-The dev server forwards `/api` and `/auth` to `http://localhost:3000`. Set `VITE_DEV_API` in `.env` if the backend runs elsewhere.
+The dev server forwards `/api` and `/auth/google` to `http://localhost:3000`. Set `VITE_DEV_API` in `.env` if the backend runs elsewhere.
 
 | Command | What it does |
 | --- | --- |
@@ -29,7 +29,7 @@ The dev server forwards `/api` and `/auth` to `http://localhost:3000`. Set `VITE
 | `npm run preview` | Serve `dist/` locally |
 | `npm run check` | Type-check |
 
-The app has no settings of its own: it talks to `/api` and `/auth` on the address it is served from.
+The app has no settings of its own: it talks to `/api` and `/auth/google` on the address it is served from.
 
 ## Deploy
 

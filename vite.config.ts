@@ -8,7 +8,8 @@ import { fileURLToPath } from "url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ mode }) => {
-  // Where `npm run dev` forwards /api and /auth. In production nginx does this.
+  // Where `npm run dev` forwards /api and the Google sign-in routes. In production nginx does this.
+  // Only /auth/google is forwarded: the app's own sign-in page is at /auth.
   const api = loadEnv(mode, __dirname, "").VITE_DEV_API || "http://localhost:3000";
   return {
     plugins: [react(), runtimeErrorOverlay(), themePlugin()],
@@ -25,7 +26,7 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         "/api": { target: api, changeOrigin: true, secure: false },
-        "/auth": { target: api, changeOrigin: true, secure: false },
+        "/auth/google": { target: api, changeOrigin: true, secure: false },
       },
     },
   };
