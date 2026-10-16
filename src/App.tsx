@@ -1,0 +1,40 @@
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "./lib/queryClient";
+import { Toaster } from "@/components/ui/toaster";
+import { AuthProvider } from "@/hooks/use-auth";
+import { Switch, Route } from "wouter";
+import { ProtectedRoute } from "./lib/protected-route";
+import LandingPage from "@/pages/landing-page";
+import HomePage from "@/pages/home-page";
+import AuthPage from "@/pages/auth-page";
+import NotFound from "@/pages/not-found";
+import AboutPage from "@/pages/About";
+import contact from "@/pages/contact";
+import CreateNewDesignPage from "@/pages/CreateNewDesignPage";
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={LandingPage} />
+      <Route path="/about" component={AboutPage} />
+      <Route path="/contact" component={contact} />
+      <ProtectedRoute path="/studio" component={HomePage} />
+      <ProtectedRoute path="/create-newDesign" component={CreateNewDesignPage} />
+      <Route path="/auth" component={AuthPage} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <Router />
+          <Toaster />
+        </AuthProvider>
+      </QueryClientProvider>
+  );
+}
+
+export default App;
