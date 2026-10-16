@@ -50,7 +50,7 @@ GitHub secrets (Settings → Secrets and variables → Actions → Repository se
 | --- | --- |
 | `EC2_HOST`, `EC2_USER` | Server address and SSH user |
 | `EC2_SSH_KEY` | Private key whose public key is in the server's `~/.ssh/authorized_keys` |
-| `EC2_FINGERPRINT` | The server's host-key fingerprint, from `ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub \| cut -d ' ' -f2` run on the server (`SHA256:…`) |
+| `EC2_FINGERPRINT` | The server's host-key fingerprint, from `ssh-keygen -l -f /etc/ssh/ssh_host_ecdsa_key.pub \| cut -d ' ' -f2` run on the server (`SHA256:…`). It must be the ECDSA key: that is the one the SSH action connects with |
 
 The SSH action and the copy action come from `appleboy` and are pinned to a commit; they receive the SSH key, so update the pin deliberately.
 
