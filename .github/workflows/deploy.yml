@@ -1,6 +1,9 @@
 name: Deploy frontend
 
 # Manual only, to save GitHub Actions minutes: Actions tab -> Deploy frontend -> Run workflow.
+# The first run creates /var/www/renoviq on the server. Every run copies the new build into its own
+# folder next to the old ones (the 2 previous builds are kept as backup) and then switches the
+# "current" link that nginx serves. nginx is configured by hand on the server, never by this workflow.
 on:
   workflow_dispatch:
 
@@ -9,16 +12,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
-    env:
-      # Public Firebase web-app settings (repository variables, not secrets).
-      VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
-      VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
-      VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
-      VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
-      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-      VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,36 +22,71 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: npm run build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist
-          if-no-files-found: error
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    # Optional: add required reviewers to the "production" environment for an approval step.
-    environment: production
-    env:
-      EC2_HOST: ${{ vars.EC2_HOST }}
-      EC2_USER: ${{ vars.EC2_USER }}
-      SHA: ${{ github.sha }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist
-      - name: Set up SSH
+      - name: Build the app
         env:
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
         run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$EC2_KNOWN_HOSTS" > ~/.ssh/known_hosts
-      - name: Upload the build and switch nginx to it
-        run: ./scripts/deploy.sh
+          for name in VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN VITE_FIREBASE_PROJECT_ID \
+            VITE_FIREBASE_STORAGE_BUCKET VITE_FIREBASE_MESSAGING_SENDER_ID VITE_FIREBASE_APP_ID; do
+            [ -n "${!name}" ] || { echo "::error::GitHub secret $name is missing or empty"; exit 1; }
+          done
+          npm run build
+
+      # Third-party actions get the SSH key, so they are pinned to a commit instead of a moving tag.
+      - name: Create /var/www/renoviq on the server (first run)
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          fingerprint: ${{ secrets.EC2_FINGERPRINT }}
+          script: |
+            set -eu
+            if [ ! -w /var/www/renoviq/releases ]; then
+              sudo -n install -d -o "$(id -un)" -g "$(id -gn)" /var/www/renoviq /var/www/renoviq/releases || {
+                echo "Cannot create /var/www/renoviq: give this user passwordless sudo, or run once: sudo install -d -o $(id -un) /var/www/renoviq /var/www/renoviq/releases"
+                exit 1
+              }
+            fi
+
+      # Each build goes into its own folder, so the old builds are never touched.
+      - name: Copy the new build to the server
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          fingerprint: ${{ secrets.EC2_FINGERPRINT }}
+          source: dist/*
+          target: /var/www/renoviq/releases/${{ github.sha }}
+          strip_components: 1
+          rm: true
+
+      # The link is swapped in one step, so visitors never see a half-copied site.
+      # touch: the clean-up sorts releases by time and the copied folder keeps the build's old time.
+      # The release just activated is never deleted; it plus the 2 newest others are kept as backup.
+      - name: Switch nginx to the new build and clean up old backups
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          fingerprint: ${{ secrets.EC2_FINGERPRINT }}
+          envs: SHA
+          script: |
+            set -eu
+            WEB=/var/www/renoviq
+            test -s "$WEB/releases/$SHA/index.html"
+            touch "$WEB/releases/$SHA"
+            ln -sfn "$WEB/releases/$SHA" "$WEB/current.new"
+            mv -Tf "$WEB/current.new" "$WEB/current"
+            cd "$WEB/releases"
+            ls -1t | grep -vxF "$SHA" | tail -n +3 | xargs -r rm -rf --

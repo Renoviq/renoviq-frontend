@@ -33,30 +33,31 @@ The `VITE_FIREBASE_*` values are the public web-app settings from the Firebase c
 
 ## Deploy
 
-Actions tab → **Deploy frontend** → Run workflow. It is manual only (it never runs on a push). The workflow:
+Actions tab → **Deploy frontend** → Run workflow. It is manual only (it never runs on a push), and it is the only thing you do to publish a new version. It:
 
 1. installs, type-checks and builds the app on the GitHub runner (`dist/`);
-2. connects to the server over SSH and copies `dist/` into `/var/www/renoviq/releases/<commit>`;
-3. points the `/var/www/renoviq/current` link at that folder in one step, so visitors never see a half-copied site, and keeps the 3 newest releases.
+2. creates `/var/www/renoviq` on the server on the first run (it needs passwordless sudo for that, the default on EC2 Ubuntu images);
+3. copies the new build into its own folder `/var/www/renoviq/releases/<commit>`; the old builds are not touched;
+4. points the `/var/www/renoviq/current` link at the new folder in one step, so visitors never see a half-copied site, and keeps the new build plus the 2 previous ones as backup.
 
-nginx serves `/var/www/renoviq/current` and proxies the API. Its config is `deploy/nginx/renoviq.conf` in the **backend** repository, and the server setup (folders, nginx, certbot, SSH key) is described in the backend README. One server setup serves both repositories.
+nginx serves `/var/www/renoviq/current` and proxies the API. **You configure nginx on the server yourself**; the workflow never touches it. A ready config to start from is `deploy/nginx/renoviq.conf` in the **backend** repository, which also describes the rest of the server setup. One server setup serves both repositories.
 
-Settings in this repository (Settings → Secrets and variables → Actions):
+GitHub secrets (Settings → Secrets and variables → Actions → Repository secrets):
 
-| Name | Type | Value |
-| --- | --- | --- |
-| `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` | variables | Firebase web-app settings |
-| `EC2_HOST`, `EC2_USER` | variables | Server address and SSH user |
-| `EC2_SSH_KEY` | secret | Private key whose public key is in the server's `~/.ssh/authorized_keys` |
-| `EC2_KNOWN_HOSTS` | secret | Output of `ssh-keyscan -t ed25519 <EC2_HOST>` |
+| Secret | Value |
+| --- | --- |
+| `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` | Firebase web-app settings (they are built into the public app) |
+| `EC2_HOST`, `EC2_USER` | Server address and SSH user |
+| `EC2_SSH_KEY` | Private key whose public key is in the server's `~/.ssh/authorized_keys` |
+| `EC2_FINGERPRINT` | The server's host-key fingerprint, from `ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub \| cut -d ' ' -f2` run on the server (`SHA256:…`) |
 
-Optionally create an environment named `production` with required reviewers to get an approval step.
+The SSH action and the copy action come from `appleboy` and are pinned to a commit; they receive the SSH key, so update the pin deliberately.
 
-Go back to an older release on the server:
+Go back to an older build on the server:
 
 ```bash
 ls -1t /var/www/renoviq/releases
-ln -sfn /var/www/renoviq/releases/<older-commit> /var/www/renoviq/current
+ln -sfn /var/www/renoviq/releases/<older-commit> /var/www/renoviq/current.new && mv -Tf /var/www/renoviq/current.new /var/www/renoviq/current
 ```
 
 ## Notes
