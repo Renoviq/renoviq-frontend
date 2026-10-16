@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
 import { Link } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Loader2 } from 'lucide-react';
 import Header from './_homepageComponents/Header';
 import { ImageUpload } from '@/components/image-upload';
 import { RoomType } from '@/components/RoomType';
 import { DesignType } from '@/components/DesignType';
 import { AdditionalReq } from '@/components/AdditionalReq';
-import { storage } from '@/lib/firebase';
 import { MAX_DESIGNS_PER_HOUR } from '@shared/schema';
 import type { Renovation } from '@shared/schema';
 
-type Stage = 'idle' | 'uploading' | 'designing';
+type Stage = 'idle' | 'designing';
 
 // The API answers { error: "message" }; validation failures send a list instead.
 async function readError(res: Response): Promise<string> {
@@ -48,26 +46,19 @@ function CreateNewDesignPage() {
       return;
     }
     setError(null);
-    setStage('uploading');
+    setStage('designing');
     try {
-      // The browser uploads the photo to Firebase Storage; the server only gets its URL.
-      const safeName = selectedFile.name.replace(/[^\w.-]/g, '_');
-      const storageRef = ref(storage, `uploads/${Date.now()}_${safeName}`);
-      await uploadBytes(storageRef, selectedFile);
-      const imageUrl = await getDownloadURL(storageRef);
-
-      // The server asks the AI for the redesign and answers when it is ready.
-      setStage('designing');
+      // The photo goes to the server with the form fields; the server asks the AI for the
+      // redesign, keeps both pictures and answers when the design is ready.
+      const form = new FormData();
+      form.set('photo', selectedFile);
+      form.set('roomType', selectedRoom);
+      form.set('style', selectedDesign);
+      form.set('description', additionalReq);
       const res = await fetch('/api/renovations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          originalImage: imageUrl,
-          roomType: selectedRoom,
-          style: selectedDesign,
-          description: additionalReq,
-        }),
+        body: form,
       });
       if (!res.ok) throw new Error(await readError(res));
 
@@ -168,7 +159,6 @@ function CreateNewDesignPage() {
                 className="w-full bg-green-600 text-white py-3 rounded-md font-semibold hover:bg-green-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-                {stage === 'uploading' && 'Uploading your photo...'}
                 {stage === 'designing' && 'Designing your room...'}
                 {stage === 'idle' && 'Generate'}
               </button>
