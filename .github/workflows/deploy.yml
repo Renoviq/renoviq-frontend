@@ -32,7 +32,6 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          fingerprint: ${{ secrets.EC2_FINGERPRINT }}
           script: |
             set -eu
             if [ ! -w /var/www/renoviq/releases ]; then
@@ -49,7 +48,6 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          fingerprint: ${{ secrets.EC2_FINGERPRINT }}
           source: dist/*
           target: /var/www/renoviq/releases/${{ github.sha }}
           strip_components: 1
@@ -66,7 +64,6 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          fingerprint: ${{ secrets.EC2_FINGERPRINT }}
           envs: SHA
           script: |
             set -eu

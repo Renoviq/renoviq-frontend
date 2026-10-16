@@ -44,13 +44,12 @@ Once the server is ready, actions tab → **Deploy frontend** → Run workflow i
 
 nginx serves `/var/www/renoviq/current` and proxies the API. **You configure nginx on the server yourself**; the workflow never touches it (a ready config is `deploy/nginx/renoviq.conf` in the backend repository).
 
-GitHub secrets (Settings → Secrets and variables → Actions → Repository secrets), the same four as the backend repository:
+GitHub secrets (Settings → Secrets and variables → Actions → Repository secrets), the same three as the backend repository:
 
 | Secret | Value |
 | --- | --- |
 | `EC2_HOST`, `EC2_USER` | Server address and SSH user |
 | `EC2_SSH_KEY` | Private key whose public key is in the server's `~/.ssh/authorized_keys` |
-| `EC2_FINGERPRINT` | The server's host-key fingerprint, from `ssh-keygen -l -f /etc/ssh/ssh_host_ecdsa_key.pub \| cut -d ' ' -f2` run on the server (`SHA256:…`). It must be the ECDSA key: that is the one the SSH action connects with |
 
 The SSH action and the copy action come from `appleboy` and are pinned to a commit; they receive the SSH key, so update the pin deliberately.
 
